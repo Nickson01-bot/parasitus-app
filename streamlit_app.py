@@ -51,7 +51,7 @@ if uploaded_file and question and file_content.strip():
 
         # Call OpenAI's ChatCompletion API
         response = ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=[{"role": "system", "content": prompt}],
         )
         answer = response["choices"][0]["message"]["content"]
