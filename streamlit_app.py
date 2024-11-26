@@ -1,5 +1,7 @@
 import streamlit as st
 from PIL import Image
+import openai
+import io
 
 # Streamlit app interface
 st.title("Parasitus-AI")
@@ -7,14 +9,14 @@ st.write("Upload an image of a parasite, and ask questions about it!")
 
 # File uploader for multiple file types
 uploaded_file = st.file_uploader(
-    "Upload an image (.png, .jpg, .jpeg)", 
+    "Upload a document (.txt, .md) or an image (.png, .jpg, .jpeg)", 
     type=["txt", "md", "png", "jpg", "jpeg"]
 )
 
 # Placeholder for user question
 question = st.text_area(
     "Ask a question about the uploaded content!",
-    placeholder="Can you summarize this document?",
+    placeholder="Can you summarize this document or describe the image?",
     disabled=not uploaded_file,
 )
 
@@ -34,29 +36,36 @@ if uploaded_file:
         # Process image files
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_column_width=True)
-        st.write("Note: Text extraction from images is not supported in this version.")
-        file_content = "Please provide a description of the image content in your own words."
+
+        # Convert the image to a byte stream for GPT-4 Vision processing
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, format=image.format)
+        image_bytes.seek(0)  # Reset the stream position
 
 # Answer questions
-if uploaded_file and question and file_content.strip():
+if uploaded_file and question:
     with st.spinner("Generating an answer..."):
-        # Simple GPT-based response
-        from openai import ChatCompletion
-
-        # Load OpenAI GPT model (replace "your-api-key" with your key)
+        # Load OpenAI GPT-4 Vision model (replace "your-api-key" with your key)
         openai.api_key = "your-api-key"
 
-        # Compose a prompt
-        prompt = f"Here is the uploaded content:\n{file_content}\n\nQuestion: {question}\n\nAnswer:"
+        if file_type in ["text/plain", "text/markdown"]:
+            # Process text files using GPT-4
+            prompt = f"Here is the uploaded content:\n{file_content}\n\nQuestion: {question}\n\nAnswer:"
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            answer = response["choices"][0]["message"]["content"]
 
-        # Call OpenAI's ChatCompletion API
-        response = ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": prompt}],
-        )
-        answer = response["choices"][0]["message"]["content"]
+        elif file_type in ["image/png", "image/jpeg"]:
+            # Use GPT-4 Vision for image analysis
+            response = openai.ChatCompletion.create(
+                model="gpt-4-vision",
+                messages=[{"role": "user", "content": question}],
+                files={"image": image_bytes},  # Pass the image bytes
+            )
+            answer = response["choices"][0]["message"]["content"]
 
-    # Display the answer
-    st.write("Answer:")
-    st.success(answer)
-
+        # Display the answer
+        st.write("Answer:")
+        st.success(answer)
